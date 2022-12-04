@@ -9,6 +9,7 @@ output: github_document
 library(tidyverse)
 library(viridis)
 library(modelr)
+library(rnoaa)
 
 knitr::opts_chunk$set(
 	echo = TRUE,
@@ -29,29 +30,11 @@ scale_fill_discrete = scale_fill_viridis_d
 theme_set(theme_minimal() + theme(legend.position = "bottom"))
 ```
 
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
-```
-
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
-```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
 
 ### Problem 1
 
-Skipped due to time.
+To perform a bootstrap for linear regression with `tmax` as the response variable and `tmin` as the predictor variable, we can use the following code. First, we download the weather data.
+
 ```{r}
 weather_df = 
   rnoaa::meteo_pull_monitors(
@@ -65,6 +48,67 @@ weather_df =
     tmax = tmax / 10) %>%
   select(name, id, everything())
 ```
+
+Then, we set the number of bootstrap samples and make empty vectors to store the bootstrap estimates.
+
+```{r}
+n_bootstrap = 5000
+r2_bootstrap = numeric(n_bootstrap)
+log_beta0beta1_bootstrap = numeric(n_bootstrap)
+```
+
+Then we bootstrap sampling.
+
+```{r}
+for (i in 1:n_bootstrap){
+
+  #Sample with replacement from the original data
+  bootstrap_sample = sample(1:nrow(weather_df), replace = TRUE)
+  
+  #Fit a linear regression model on the bootstrap sample
+  bootstrap_model = lm(tmax ~ tmin, data = weather_df[bootstrap_sample, ])
+  
+  #Extract r2 and log(beta0 * beta1) from the bootstrap model
+  r2_bootstrap[i] = broom::glance(bootstrap_model)$r.squared
+  log_beta0beta1_bootstrap[i] = log(coef(bootstrap_model)[1] * coef(bootstrap_model)[2])
+  
+}
+```
+
+Then we plot the distribution of our bootstrap estimates.
+
+```{r}
+#For r2_bootstrap
+r2_bootstrap %>%
+  data.frame() %>% 
+  ggplot(aes(x = r2_bootstrap)) +
+  geom_density() +
+  labs(
+    title = "Distribution of R-squared Estimates"
+  )
+
+#For log_beta0beta1_bootstrap
+log_beta0beta1_bootstrap %>%
+  data.frame() %>% 
+  ggplot(aes(x = log_beta0beta1_bootstrap)) +
+  geom_density() +
+  labs(
+    title = "Distribution of log(beta0 * beta1) Estimates"
+  )
+```
+
+The resulting plots show the distribution of r2 and log(beta0 * beta1) estimates obtained from the bootstrap samples. They show that the value of `r2_bootstrap` is generally around 0.91 and the value of `log_beta0beta1_bootstrap` is generally around 2.01.
+
+Now, we calculate 95% confidence intervals for r2 and log(beta0 * beta1). The 95% confidence intervals for these two quantities can be calculated by taking the 2.5% and 97.5% quantiles of the bootstrap estimates.
+
+```{r}
+r2_ci = quantile(r2_bootstrap, c(0.025, 0.975))
+
+log_beta0beta1_ci = quantile(log_beta0beta1_bootstrap, c(0.025, 0.975))
+```
+
+In this case, the 95% confidence interval for `r2_bootstrap` is [`r round(r2_ci[1],5)`, `r round(r2_ci[2],5)`] and the 95% confidence interval for `log_beta0beta1_bootstrap` is [`r round(log_beta0beta1_ci[1],5)`, `r round(log_beta0beta1_ci[2],5)`].
+
 
 ### Problem 2
 
