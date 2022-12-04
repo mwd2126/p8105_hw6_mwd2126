@@ -133,7 +133,8 @@ homicide = homicide %>%
   filter(city_state != "Dallas, TX" && city_state != "Phoenix, AZ" && city_state != "Kansas City, MO") %>%
   filter(city_state != "Tulsa, AL") %>% 
   filter(victim_race == "White" | victim_race == "Black") %>% 
-  filter(victim_age != "Unknown")
+  filter(victim_age != "Unknown") %>% 
+  filter(victim_sex != "Unknown")
 
 homicide$victim_age = as.numeric(homicide$victim_age)
 ```
@@ -178,12 +179,13 @@ nest_city_homicides =
   homicide %>% 
   nest(data = -city_state) %>% 
   mutate(
-    models = map(data, ~ glm(resolved ~ victim_age + victim_sex + victim_race , data = .x, family = binomial())),
-    results = map(models, broom::tidy)) %>% 
+    models = map(data, ~ glm(resolved ~ victim_age + victim_sex + victim_race, data = .x, family = binomial())),
+    results = map(models, broom::tidy, conf.int = TRUE, conf.level = 0.95)) %>% 
   select(-data, -models) %>% 
-  unnest(results) %>% 
-  knitr::kable(digits = 3)
+  unnest(results)
 ```
+
+Now we'll neaten that information in a table.
 
 ```{r}
 nest_city_homicides %>% 
@@ -194,7 +196,63 @@ nest_city_homicides %>%
   knitr::kable(digits = 3)
 ```
 
+Now we'll narrow in on the ORs and CIs for the impact of the victim's sex specifically.
+
+```{r}
+sex_hom = nest_city_homicides %>% 
+  select(city_state, term, estimate, conf.low, conf.high) %>% 
+  mutate(term = fct_inorder(term)) %>% 
+  pivot_wider(
+    names_from = term, values_from = estimate) %>%
+  drop_na(victim_sexMale) %>%
+  select(city_state, victim_sexMale, conf.low, conf.high) 
+
+sex_hom %>% 
+  knitr::kable(digits = 3)
+```
+
+And we'll plot it.
+
+```{r}
+sex_hom %>%
+  mutate(city_state = fct_reorder(city_state, victim_sexMale)) %>% 
+  ggplot(aes(x = city_state, y = victim_sexMale)) + 
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 80, hjust = 1))
+```
+The plot might suggest that bigger cities seem to have a lower odds ratio. Notably, the odds ratio NYC is much lower than all the other cities included in this analysis.
 
 ### Problem 3
+
+Load the data first.
+
+```{r read data for problem 3}
+bw <- read.csv("https://p8105.com/data/birthweight.csv")
+```
+
+Now we'll clean it up a bit.
+
+```{r}
+bw = bw %>% 
+  drop_na() %>% 
+  mutate(babysex = factor(if_else(babysex == 1, "male", "female")),
+         frace = factor(recode(frace, '1' = "White", '2' = "Black", '3' = "Asian", '4' = "Puerto Rican", '8' = "Other", '9' = "Unknown")),
+         malform = factor(if_else(malform == 1, "present", "absent")),
+         mrace = factor(recode(mrace,'1' = "White", '2' = "Black", '3' = "Asian", '4' = "Puerto Rican", '8' = "Other", '9' = "Unknown")))
+```
+
+I'd like to use gestational age as a possible predictor for birth weight, since weight changes across gestation and prematurity can lead to lower birth weights. We'll also include mother's age as a covariate, as that can impact fetal development.
+
+```{r}
+fit = lm(bwt ~ gaweeks + momage, data = bw)
+
+fit %>% 
+ggplot(aes(x = gaweeks, y = bwt)) + 
+  geom_point()
+
+```
+
+
+
 
 
