@@ -57,7 +57,7 @@ r2_bootstrap = numeric(n_bootstrap)
 log_beta0beta1_bootstrap = numeric(n_bootstrap)
 ```
 
-Then we bootstrap sampling.
+Then we start bootstrap sampling.
 
 ```{r}
 for (i in 1:n_bootstrap){
@@ -112,6 +112,19 @@ In this case, the 95% confidence interval for `r2_bootstrap` is [`r round(r2_ci[
 
 ### Problem 2
 
+First, we'll start by importing the data from the Washington Post's Github page.
+```{r read data}
+homicide <- read.csv("https://raw.githubusercontent.com/washingtonpost/data-homicides/master/homicide-data.csv")
+```
+
+We can then create the city_state variable by combining the city and state columns, and create the binary variable indicating whether the homicide is solved by using the ifelse() function to assign 1 to homicides that are solved and 0 to those that are not.
+
+```{r}
+homicide = homicide %>% 
+  mutate(
+    city_state = str_c(city, ", ", state)
+  )
+```
 
 
 ### Problem 3
